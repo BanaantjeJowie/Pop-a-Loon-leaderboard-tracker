@@ -9,7 +9,7 @@ def capture_screenshot(region):
 def main():
     
     #(x=1303, y=564, width=194, height=272)
-    region = (1303, 564 ,194 ,272 )
+    region = (1468, 611, 188, 251)
     capture_screenshot(region)
 
 if __name__ == "__main__":
