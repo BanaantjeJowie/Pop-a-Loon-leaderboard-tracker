@@ -1,159 +1,98 @@
-import pyautogui
-import time
-import keyboard
-import pytesseract
-from PIL import Image
-import os
-from typing import Dict, Tuple
-import re
-from datetime import datetime, timedelta
+import requests
 import json
+import os
+from datetime import datetime
 
-# Configure Tesseract path (change this path to where Tesseract is installed on your system)
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+# Define the necessary URLs and headers
+leaderboard_url = "https://pop-a-loon.stijnen.be/api/leaderboard?limit=10"
+discord_webhook_url = "https://discord.com/api/webhooks/1247250306446790769/nx3UwUhZ_70OY5R-eT4Bal_y0vK1-PDXXAVrCRdlAMLK7FXzggj3cwwiZ3R_BmH0lcAJ"
 
-SCORES_FILE = 'scores.json'
+headers = {
+    'authorization': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY2MDZlYTI0OWZiZTg1ZDUyM2RkOWM1YiIsImlhdCI6MTcxMTcyOTE4OH0.qDSx4sGLHHArwWQT5husBehcXU2u0Hwsxh9Z9kS-ieU'
+}
 
-def type_text(text: str, interval: float = 0.01) -> None:
-    for char in text:
-        pyautogui.typewrite(char)
-        time.sleep(interval)
-    pyautogui.press('enter')
-    time.sleep(0.05)
-    pyautogui.press('enter')
+# File to store the previous leaderboard data and timestamp
+data_file = 'previous_leaderboard.json'
 
-def capture_and_read_text(region: Tuple[int, int, int, int]) -> str:
-    print("Capturing screenshot in 5 seconds...")
-    for i in range(5, 0, -1):
-        print(f"{i}...", end='\r')
-        time.sleep(1)
-    print("Capturing screenshot now!")
-    screenshot = pyautogui.screenshot(region=region)
-    screenshot.save('captured_text.png')
-    try:
-        text = pytesseract.image_to_string(Image.open('captured_text.png'))
-    except Exception as e:
-        print(f"Error during OCR: {e}")
-        text = ""
-    return text
+# Fetch the leaderboard data
+response = requests.get(leaderboard_url, headers=headers)
+current_leaderboard = response.json()
 
-def process_text(text: str) -> Dict[str, int]:
-    lines = text.split('\n')
-    scores = {}
-    pattern = re.compile(r'^(.*\S)\s+(\d+)$')
+# Load the previous leaderboard data from a local file
+try:
+    with open(data_file, 'r') as f:
+        previous_data = json.load(f)
+        previous_leaderboard = previous_data['topUsers']
+        last_check_time = datetime.fromisoformat(previous_data['timestamp'])
+except (FileNotFoundError, KeyError):
+    previous_leaderboard = []
+    last_check_time = datetime.now()
 
-    for line in lines:
-        match = pattern.match(line)
-        if match:
-            username, score = match.groups()
-            scores[username] = int(score)
-    
-    return scores
+# Calculate the time since the last check
+current_time = datetime.now()
+time_diff = current_time - last_check_time
+time_diff_str = str(time_diff).split('.')[0]  # Format the time difference
 
-def save_scores(scores: Dict[str, int], filename: str = SCORES_FILE) -> None:
-    data = {
-        "timestamp": datetime.now().isoformat(),
-        "scores": scores
-    }
-    with open(filename, 'w') as file:
-        json.dump(data, file)
-
-def load_scores(filename: str = SCORES_FILE) -> Tuple[Dict[str, int], datetime]:
-    if not os.path.exists(filename):
-        return {}, None
-    
-    try:
-        with open(filename, 'r') as file:
-            data = json.load(file)
-            timestamp = datetime.fromisoformat(data['timestamp'])
-            scores = data['scores']
-            return scores, timestamp
-    except (json.JSONDecodeError, KeyError) as e:
-        print(f"Error loading scores: {e}")
-        return {}, None
-
-def initialize_script(countdown: int = 5) -> None:
-    print("Starting script in 5 seconds...")
-    for i in range(countdown, 0, -1):
-        print(f"{i}...", end='\r')
-        time.sleep(1)
-    print("Script starting now!")
-
-def main_loop(region: Tuple[int, int, int, int], text_to_type: str) -> None:
-    initialize_script()
-    previous_scores, last_run_time = load_scores()
-
-    if last_run_time:
-        current_time = datetime.now()
-        time_diff = current_time - last_run_time
-
-        days = time_diff.days
-        hours, remainder = divmod(time_diff.seconds, 3600)
-        minutes, _ = divmod(remainder, 60)
-
-        time_since_last_run = ""
-        if days > 0:
-            time_since_last_run += f"{days} days, "
-        if hours > 0:
-            time_since_last_run += f"{hours} hours, "
-        if minutes > 0:
-            time_since_last_run += f"{minutes} minutes"
-        time_since_last_run = time_since_last_run.rstrip(", ")
-
-        print(f"Time since last run: {time_since_last_run}")
-
-    try:
-        while True:
-            if keyboard.is_pressed('q'):
-                print("Script stopped by user.")
-                break
-
-            type_text(text_to_type)
-
-            captured_text = capture_and_read_text(region)
-            current_scores = process_text(captured_text)
-
-            for username, current_score in current_scores.items():
-                previous_score = previous_scores.get(username, None)
-                if previous_score is None:
-                    previous_scores[username] = current_score
-                    continue
-                increment = current_score - previous_score
-                if increment > 0:
-                    time_since_last_check = f"({time_since_last_run} since last check)"
-                    result_text = f"{username} popped {increment} Balloons {time_since_last_check}."
-                    type_text(result_text)
-                previous_scores[username] = current_score
-
-            save_scores(previous_scores)
-
-            countdown_timer(600)
-
-            if keyboard.is_pressed('q'):
-                break
-    except KeyboardInterrupt:
-        print("Script terminated.")
-
-def countdown_timer(seconds: int) -> None:
-    RED = "\033[91m"
-    RESET = "\033[0m"
-    countdown = seconds
-    while countdown > 0:
-        if keyboard.is_pressed('q'):
-            print("Script stopped by user.")
+# Calculate the number of popped balloons since the last check
+balloon_differences = {}
+for current_user in current_leaderboard.get('topUsers', []):
+    for previous_user in previous_leaderboard:
+        if current_user['username'] == previous_user['username']:
+            balloon_differences[current_user['username']] = current_user['count'] - previous_user['count']
             break
-        mins, secs = divmod(countdown, 60)
-        timeformat = '{:02d}:{:02d}'.format(mins, secs)
-        print(f"{RED}Next message in {timeformat}{RESET}", end='\r')
-        time.sleep(1)
-        countdown -= 1
-    os.system('cls' if os.name == 'nt' else 'clear')
+    else:
+        balloon_differences[current_user['username']] = current_user['count']
 
-def main() -> None:
-    text_to_type = "/pop-a-loon"
-    region = (1468, 611, 188, 251)
+# Save the current leaderboard data with the current timestamp for future comparison
+with open(data_file, 'w') as f:
+    json.dump({
+        'timestamp': current_time.isoformat(),
+        'topUsers': current_leaderboard.get('topUsers', [])
+    }, f)
 
-    main_loop(region, text_to_type)
+# Create the Discord embed message
+username_field = {
+    "name": "Username",
+    "value": "",
+    "inline": True
+}
 
-if __name__ == "__main__":
-    main()
+count_field = {
+    "name": "Count",
+    "value": "",
+    "inline": True
+}
+
+pops_since_last_check_field = {
+    "name": "Increase",
+    "value": "",
+    "inline": True
+}
+
+for user in current_leaderboard.get('topUsers', []):
+    diff = balloon_differences.get(user['username'], user['count'])
+    username_field["value"] += f"{user['username']}\n"
+    count_field["value"] += f"{user['count']}\n"
+    pops_since_last_check_field["value"] += f"+{diff}\n"
+
+embed = {
+    "embeds": [
+        {
+            "title": "Top 10 Pop-A-Loon Suspects.",
+            "color": 16711680,
+            "fields": [username_field, count_field, pops_since_last_check_field],
+            "avatar": "bb71f469c158984e265093a81b3397fb",
+            "footer": {
+                "text": f"Pops since the last check ({time_diff_str} ago).",
+                "icon_url": "https://raw.githubusercontent.com/SimonStnn/pop-a-loon/main/resources/icons/icon-128.png"  
+            }
+        }
+    ]
+}
+
+# Send the embed to Discord
+requests.post(
+    discord_webhook_url, 
+    data=json.dumps(embed), 
+    headers={"Content-Type": "application/json"}
+)
