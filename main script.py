@@ -14,12 +14,12 @@ pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tessera
 
 SCORES_FILE = 'scores.json'
 
-def type_text(text: str, interval: float = 0.05) -> None:
+def type_text(text: str, interval: float = 0.01) -> None:
     for char in text:
         pyautogui.typewrite(char)
         time.sleep(interval)
     pyautogui.press('enter')
-    time.sleep(0.5)
+    time.sleep(0.05)
     pyautogui.press('enter')
 
 def capture_and_read_text(region: Tuple[int, int, int, int]) -> str:
@@ -79,6 +79,8 @@ def initialize_script(countdown: int = 5) -> None:
         time.sleep(1)
     print("Script starting now!")
 
+def main_loop(region: Tuple[int, int, int, int], text_to_type: str) -> None:
+    initialize_script()
     previous_scores, last_run_time = load_scores()
 
     if last_run_time:
@@ -89,10 +91,16 @@ def initialize_script(countdown: int = 5) -> None:
         hours, remainder = divmod(time_diff.seconds, 3600)
         minutes, _ = divmod(remainder, 60)
 
-        print(f"Time since last run: {days} days, {hours} hours, {minutes} minutes")
+        time_since_last_run = ""
+        if days > 0:
+            time_since_last_run += f"{days} days, "
+        if hours > 0:
+            time_since_last_run += f"{hours} hours, "
+        if minutes > 0:
+            time_since_last_run += f"{minutes} minutes"
+        time_since_last_run = time_since_last_run.rstrip(", ")
 
-def main_loop(region: Tuple[int, int, int, int], text_to_type: str) -> None:
-    previous_scores = {}
+        print(f"Time since last run: {time_since_last_run}")
 
     try:
         while True:
@@ -112,11 +120,14 @@ def main_loop(region: Tuple[int, int, int, int], text_to_type: str) -> None:
                     continue
                 increment = current_score - previous_score
                 if increment > 0:
-                    result_text = f"{username} popped {increment} Balloons in 5 minutes."
+                    time_since_last_check = f"({time_since_last_run} since last check)"
+                    result_text = f"{username} popped {increment} Balloons {time_since_last_check}."
                     type_text(result_text)
                 previous_scores[username] = current_score
 
-            countdown_timer(60)
+            save_scores(previous_scores)
+
+            countdown_timer(600)
 
             if keyboard.is_pressed('q'):
                 break
@@ -142,7 +153,6 @@ def main() -> None:
     text_to_type = "/pop-a-loon"
     region = (1468, 611, 188, 251)
 
-    initialize_script()
     main_loop(region, text_to_type)
 
 if __name__ == "__main__":
