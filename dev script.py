@@ -97,7 +97,6 @@ def check_leaderboard():
             "title": "Top 10 Pop-A-Loon Suspects.",
             "color": 16711680,
             "fields": [username_field, count_field, pops_since_last_check_field],
-            "avatar": "bb71f469c158984e265093a81b3397fb",
             "footer": {
                 "text": f"Pops since the last check ({time_diff_str} ago).",
                 "icon_url": "https://raw.githubusercontent.com/SimonStnn/pop-a-loon/main/resources/icons/icon-128.png"  
@@ -113,10 +112,7 @@ def check_leaderboard():
             headers={"Content-Type": "application/json"}
         )
 
-def schedule_check():
-    # Call check_leaderboard and then schedule the next check after 15 minutes
-    check_leaderboard()
-    root.after(15 * 60 * 1000, schedule_check)
+
 
 # Set up the Tkinter window
 root = tk.Tk()
@@ -148,8 +144,6 @@ timer_label.pack(pady=(0, 10))
 check_button = ttk.Button(frame, text="Check", command=check_leaderboard)
 check_button.pack(pady=10)
 
-# Schedule the first check after 15 minutes
-root.after(30 * 60 * 1000, schedule_check)
-
 # Run the Tkinter event loop
 root.mainloop()
+
