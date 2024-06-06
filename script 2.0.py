@@ -1,16 +1,20 @@
 import requests
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
 from flask import Flask, jsonify
+from threading import Thread
 
 # Define the necessary URLs and headers
 leaderboard_url = "https://pop-a-loon.stijnen.be/api/leaderboard?limit=10"
-#discord_webhook_url = "https://discord.com/api/webhooks/1247250306446790769/nx3UwUhZ_70OY5R-eT4Bal_y0vK1-PDXXAVrCRdlAMLK7FXzggj3cwwiZ3R_BmH0lcAJ?thread_id=1247513167278637138"
-discord_webhook_url = "https://discord.com/api/webhooks/1247250306446790769/nx3UwUhZ_70OY5R-eT4Bal_y0vK1-PDXXAVrCRdlAMLK7FXzggj3cwwiZ3R_BmH0lcAJ"
+webhook_urls = {
+    "main": "https://discord.com/api/webhooks/1247250306446790769/nx3UwUhZ_70OY5R-eT4Bal_y0vK1-PDXXAVrCRdlAMLK7FXzggj3cwwiZ3R_BmH0lcAJ",
+    "simon": "https://discord.com/api/webhooks/1247919630958461038/6MK3C7S9ggIpOM-tmbXd2iCkSrM7Trai27ROLBVhaWrQKU_RdsbY8nNoz6rlFpeEsMtj",
+    "test": "https://discord.com/api/webhooks/1247250306446790769/nx3UwUhZ_70OY5R-eT4Bal_y0vK1-PDXXAVrCRdlAMLK7FXzggj3cwwiZ3R_BmH0lcAJ?thread_id=1247513167278637138"
+}
 headers = {
     'authorization': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY2MDZlYTI0OWZiZTg1ZDUyM2RkOWM1YiIsImlhdCI6MTcxMTcyOTE4OH0.qDSx4sGLHHArwWQT5husBehcXU2u0Hwsxh9Z9kS-ieU'
 }
@@ -18,9 +22,11 @@ headers = {
 # File to store the previous leaderboard data and timestamp
 data_file = 'previous_leaderboard.json'
 
+# Time interval for automatic checks (60 minutes)
+check_interval = 3600
+
 def fetch_leaderboard():
     try:
-        # Fetch the leaderboard data
         response = requests.get(leaderboard_url, headers=headers)
         response.raise_for_status()
         return response.json()
@@ -133,14 +139,19 @@ def create_embed(current_leaderboard, balloon_differences, time_diff_str, filter
     }
     return embed
 
-def send_to_discord(embed):
-    response = requests.post(
-        discord_webhook_url, 
-        data=json.dumps(embed), 
-        headers={"Content-Type": "application/json"}
-    )
+def send_to_discord(embed, selected_webhooks):
+    for name in selected_webhooks:
+        url = webhook_urls.get(name)
+        if url:
+            requests.post(
+                url, 
+                data=json.dumps(embed), 
+                headers={"Content-Type": "application/json"}
+            )
 
 def check_leaderboard(filtered=False):
+    global next_check_time
+
     current_leaderboard = fetch_leaderboard()
     if current_leaderboard is None:
         return
@@ -148,7 +159,7 @@ def check_leaderboard(filtered=False):
     previous_leaderboard, last_check_time = load_previous_data()
     current_time = datetime.now()
     time_diff = current_time - last_check_time
-    time_diff_str = str(time_diff).split('.')[0]  # Format the time difference
+    time_diff_str = str(time_diff).split('.')[0]
     
     # Update the live timer label
     timer_label.config(text=f"Time since last check: {time_diff_str}")
@@ -157,11 +168,32 @@ def check_leaderboard(filtered=False):
     save_current_data(current_leaderboard, current_time)
 
     embed = create_embed(current_leaderboard, balloon_differences, time_diff_str, filtered)
-    send_to_discord(embed)
+
+    # Collect selected webhooks
+    selected_webhooks = [key for key, var in webhook_vars.items() if var.get() == 1]
+    send_to_discord(embed, selected_webhooks)
+
+    # Schedule the next check
+    next_check_time = current_time + timedelta(seconds=check_interval)
+    update_countdown()
+
+def schedule_next_check():
+    root.after(check_interval * 1000, check_leaderboard)
+
+def update_countdown():
+    global next_check_time
+
+    if next_check_time:
+        time_left = next_check_time - datetime.now()
+        if time_left.total_seconds() > 0:
+            countdown_label.config(text=f"Time until next check: {str(time_left).split('.')[0]}")
+            root.after(1000, update_countdown)
+        else:
+            countdown_label.config(text="Time until next check: 00:00:00")
+            check_leaderboard()
 
 def create_filtered_leaderboard():
     try:
-        # Load the previous leaderboard data
         with open(data_file, 'r') as f:
             previous_data = json.load(f)
             previous_leaderboard = previous_data['topUsers']
@@ -260,9 +292,14 @@ def filtered_leaderboard():
     filtered_embed = create_filtered_leaderboard()
     return jsonify(filtered_embed)
 
+def start_automatic_checks():
+    global next_check_time
+    next_check_time = datetime.now() + timedelta(seconds=check_interval)
+    update_countdown()
+    schedule_next_check()
+
 if __name__ == "__main__":
     # Run the Flask app in a separate thread
-    from threading import Thread
     flask_thread = Thread(target=lambda: app.run(debug=False, use_reloader=False))
     flask_thread.start()
 
@@ -271,7 +308,7 @@ if __name__ == "__main__":
     root.title("Pop-A-Loon Leaderboard Checker")
 
     # Set the window size
-    height = 200
+    height = 300
     width = 400
     root.geometry(f"{width}x{height}")
 
@@ -292,12 +329,36 @@ if __name__ == "__main__":
     timer_label = tk.Label(frame, text="", font=("Helvetica", 10), bg="#f0f0f0")
     timer_label.pack(pady=(0, 10))
 
+    # Add the countdown label
+    countdown_label = tk.Label(frame, text="", font=("Helvetica", 10), bg="#f0f0f0")
+    countdown_label.pack(pady=(0, 10))
+
+    # Add checkboxes for webhook selection
+    webhook_vars = {
+        "main": tk.IntVar(),
+        "simon": tk.IntVar(),
+        "test": tk.IntVar()
+    }
+
+    checkbox_main = tk.Checkbutton(frame, text="Main Webhook", variable=webhook_vars["main"], bg="#f0f0f0")
+    checkbox_main.pack(anchor="w")
+
+    checkbox_simon = tk.Checkbutton(frame, text="Simon Webhook", variable=webhook_vars["simon"], bg="#f0f0f0")
+    checkbox_simon.pack(anchor="w")
+
+    checkbox_test = tk.Checkbutton(frame, text="Test Webhook", variable=webhook_vars["test"], bg="#f0f0f0")
+    checkbox_test.pack(anchor="w")
+
     # Add the check buttons with some styling
     check_button_top10 = ttk.Button(frame, text="Check Top 10", command=lambda: check_leaderboard(filtered=False))
     check_button_top10.pack(pady=(5, 5))
 
     check_button_filtered = ttk.Button(frame, text="Increase only", command=lambda: check_leaderboard(filtered=True))
     check_button_filtered.pack(pady=(5, 5))
+
+    # Add the start button for automatic checks
+    start_button = ttk.Button(frame, text="Start Automatic Checks", command=start_automatic_checks)
+    start_button.pack(pady=(10, 10))
 
     # Run the Tkinter event loop
     root.mainloop()
