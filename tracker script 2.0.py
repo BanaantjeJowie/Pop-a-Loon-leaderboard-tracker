@@ -8,7 +8,6 @@ from tkinter import ttk
 from flask import Flask, jsonify
 from threading import Thread
 
-# Define the necessary URLs and headers
 leaderboard_url = "https://pop-a-loon.stijnen.be/api/leaderboard?limit=10"
 webhook_urls = {
     "main": "https://discord.com/api/webhooks/1247250306446790769/nx3UwUhZ_70OY5R-eT4Bal_y0vK1-PDXXAVrCRdlAMLK7FXzggj3cwwiZ3R_BmH0lcAJ",
@@ -19,10 +18,7 @@ headers = {
     'authorization': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY2MDZlYTI0OWZiZTg1ZDUyM2RkOWM1YiIsImlhdCI6MTcxMTcyOTE4OH0.qDSx4sGLHHArwWQT5husBehcXU2u0Hwsxh9Z9kS-ieU'
 }
 
-# File to store the previous leaderboard data and timestamp
 data_file = 'previous_leaderboard.json'
-
-# Time interval for automatic checks (60 minutes)
 check_interval = 3600
 
 def fetch_leaderboard():
@@ -58,12 +54,20 @@ def save_current_data(current_leaderboard, current_time):
 def calculate_differences(current_leaderboard, previous_leaderboard):
     balloon_differences = {}
     for current_user in current_leaderboard.get('topUsers', []):
+        current_user_id = current_user['id']
+        current_user_count = current_user['count']
         for previous_user in previous_leaderboard:
-            if current_user['username'] == previous_user['username']:
-                balloon_differences[current_user['username']] = current_user['count'] - previous_user['count']
+            if current_user_id == previous_user['id']:
+                balloon_differences[current_user_id] = {
+                    'username': current_user['username'],
+                    'count_diff': current_user_count - previous_user['count']
+                }
                 break
         else:
-            balloon_differences[current_user['username']] = current_user['count']
+            balloon_differences[current_user_id] = {
+                'username': current_user['username'],
+                'count_diff': current_user_count
+            }
     return balloon_differences
 
 def create_embed(current_leaderboard, balloon_differences, time_diff_str, filtered=False):
@@ -88,29 +92,31 @@ def create_embed(current_leaderboard, balloon_differences, time_diff_str, filter
     if filtered:
         has_increases = False
         for user in current_leaderboard.get('topUsers', []):
-            diff = balloon_differences.get(user['username'], user['count'])
-            if diff > 0:
+            user_id = user['id']
+            diff_info = balloon_differences.get(user_id, {'username': user['username'], 'count_diff': user['count']})
+            if diff_info['count_diff'] > 0:
                 has_increases = True
-                username_field["value"] += f"{user['username']}\n"
+                username_field["value"] += f"{diff_info['username']}\n"
                 count_field["value"] += f"{user['count']}\n"
-                pops_since_last_check_field["value"] += f"+{diff}\n"
+                pops_since_last_check_field["value"] += f"+{diff_info['count_diff']}\n"
         if not has_increases:
             username_field["value"] = "No increases"
             count_field["value"] = "-"
             pops_since_last_check_field["value"] = "-"
     else:
         for user in current_leaderboard.get('topUsers', []):
-            diff = balloon_differences.get(user['username'], user['count'])
-            username_field["value"] += f"{user['username']}\n"
+            user_id = user['id']
+            diff_info = balloon_differences.get(user_id, {'username': user['username'], 'count_diff': user['count']})
+            username_field["value"] += f"{diff_info['username']}\n"
             count_field["value"] += f"{user['count']}\n"
-            pops_since_last_check_field["value"] += f"+{diff}\n"
+            pops_since_last_check_field["value"] += f"+{diff_info['count_diff']}\n"
 
     filtered_url = "http://localhost:5000/filtered_leaderboard"
 
     embed = {
         "embeds": [
             {
-                "title": "Top 10 Poppers" if not filtered else " All increases",
+                "title": "Top 10 Poppers" if not filtered else "All increases",
                 "thumbnail": {
                     "url": "https://raw.githubusercontent.com/SimonStnn/pop-a-loon/main/resources/icons/icon-128.png"
                 },
@@ -161,7 +167,6 @@ def check_leaderboard(filtered=False):
     time_diff = current_time - last_check_time
     time_diff_str = str(time_diff).split('.')[0]
     
-    # Update the live timer label
     timer_label.config(text=f"Time since last check: {time_diff_str}")
 
     balloon_differences = calculate_differences(current_leaderboard, previous_leaderboard)
@@ -169,11 +174,9 @@ def check_leaderboard(filtered=False):
 
     embed = create_embed(current_leaderboard, balloon_differences, time_diff_str, filtered)
 
-    # Collect selected webhooks
     selected_webhooks = [key for key, var in webhook_vars.items() if var.get() == 1]
     send_to_discord(embed, selected_webhooks)
 
-    # Schedule the next check
     next_check_time = current_time + timedelta(seconds=check_interval)
     update_countdown()
 
@@ -209,7 +212,7 @@ def create_filtered_leaderboard():
     current_leaderboard = fetch_leaderboard()
     balloon_differences = calculate_differences(current_leaderboard, previous_leaderboard)
 
-    filtered_users = [user for user in current_leaderboard.get('topUsers', []) if balloon_differences.get(user['username'], user['count']) > 0]
+    filtered_users = [user for user in current_leaderboard.get('topUsers', []) if balloon_differences.get(user['id'], {'count_diff': user['count']})['count_diff'] > 0]
 
     if not filtered_users:
         filtered_embed = {
@@ -262,10 +265,11 @@ def create_filtered_leaderboard():
         }
 
         for user in filtered_users:
-            diff = balloon_differences.get(user['username'], user['count'])
-            filtered_username_field["value"] += f"{user['username']}\n"
+            user_id = user['id']
+            diff_info = balloon_differences.get(user_id, {'username': user['username'], 'count_diff': user['count']})
+            filtered_username_field["value"] += f"{diff_info['username']}\n"
             filtered_count_field["value"] += f"{user['count']}\n"
-            filtered_pops_since_last_check_field["value"] += f"+{diff}\n"
+            filtered_pops_since_last_check_field["value"] += f"+{diff_info['count_diff']}\n"
 
         filtered_embed = {
             "embeds": [
@@ -284,7 +288,6 @@ def create_filtered_leaderboard():
 
     return filtered_embed
 
-# Flask app to serve the filtered leaderboard (if full interactivity is required)
 app = Flask(__name__)
 
 @app.route('/filtered_leaderboard')
@@ -299,41 +302,32 @@ def start_automatic_checks():
     schedule_next_check()
 
 if __name__ == "__main__":
-    # Run the Flask app in a separate thread
     flask_thread = Thread(target=lambda: app.run(debug=False, use_reloader=False))
     flask_thread.start()
 
-    # Set up the Tkinter window
     root = tk.Tk()
     root.title("Pop-A-Loon Leaderboard Checker")
 
-    # Set the window size
     height = 300
     width = 400
     root.geometry(f"{width}x{height}")
 
-    # Add padding and background color
     root.configure(bg="#f0f0f0")
     root.grid_rowconfigure(0, weight=1)
     root.grid_columnconfigure(0, weight=1)
 
-    # Add a frame for better organization
     frame = tk.Frame(root, bg="#f0f0f0", padx=20, pady=20)
     frame.grid(sticky="nsew")
 
-    # Add a title label
     title_label = tk.Label(frame, text="Check on leaderboard.", font=("Helvetica", 16), bg="#f0f0f0")
     title_label.pack(pady=(0, 10))
 
-    # Add the live timer label
     timer_label = tk.Label(frame, text="", font=("Helvetica", 10), bg="#f0f0f0")
     timer_label.pack(pady=(0, 10))
 
-    # Add the countdown label
     countdown_label = tk.Label(frame, text="", font=("Helvetica", 10), bg="#f0f0f0")
     countdown_label.pack(pady=(0, 10))
 
-    # Add checkboxes for webhook selection
     webhook_vars = {
         "main": tk.IntVar(),
         "simon": tk.IntVar(),
@@ -349,16 +343,13 @@ if __name__ == "__main__":
     checkbox_test = tk.Checkbutton(frame, text="Test Webhook", variable=webhook_vars["test"], bg="#f0f0f0")
     checkbox_test.pack(anchor="w")
 
-    # Add the check buttons with some styling
     check_button_top10 = ttk.Button(frame, text="Check Top 10", command=lambda: check_leaderboard(filtered=False))
     check_button_top10.pack(pady=(5, 5))
 
     check_button_filtered = ttk.Button(frame, text="Increase only", command=lambda: check_leaderboard(filtered=True))
     check_button_filtered.pack(pady=(5, 5))
 
-    # Add the start button for automatic checks
     start_button = ttk.Button(frame, text="Start Automatic Checks", command=start_automatic_checks)
     start_button.pack(pady=(10, 10))
 
-    # Run the Tkinter event loop
     root.mainloop()
