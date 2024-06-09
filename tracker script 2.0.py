@@ -113,7 +113,7 @@ def create_embed(current_leaderboard, balloon_differences, time_diff_str, filter
 
     filtered_url = "http://localhost:5000/filtered_leaderboard"
 
-    embed = {
+    embed = { "avatar_url": "https://cdn.discordapp.com/attachments/1247513167278637138/1248939295679709276/file_6.png?ex=66657cdc&is=66642b5c&hm=64ab019e21c19b3b99fb61a462eeda1771822dafb91b5367ccacfe021a443387&",
         "embeds": [
             {
                 "title": "Top 10 Poppers" if not filtered else "All increases",
@@ -122,7 +122,6 @@ def create_embed(current_leaderboard, balloon_differences, time_diff_str, filter
                 },
                 "color": 16711680,
                 "fields": [username_field, count_field, pops_since_last_check_field],
-                "avatar": "bb71f469c158984e265093a81b3397fb",
                 "footer": {
                     "text": f"Pops since the last check ({time_diff_str} ago).",
                     "icon_url": "https://raw.githubusercontent.com/SimonStnn/pop-a-loon/main/resources/icons/icon-128.png"  
@@ -215,7 +214,7 @@ def create_filtered_leaderboard():
     filtered_users = [user for user in current_leaderboard.get('topUsers', []) if balloon_differences.get(user['id'], {'count_diff': user['count']})['count_diff'] > 0]
 
     if not filtered_users:
-        filtered_embed = {
+        filtered_embed = {"avatar_url": "https://cdn.discordapp.com/attachments/1247513167278637138/1248939295679709276/file_6.png?ex=66657cdc&is=66642b5c&hm=64ab019e21c19b3b99fb61a462eeda1771822dafb91b5367ccacfe021a443387&",
             "embeds": [
                 {
                     "title": "Top 10 Pop-A-Loon Suspects - Increases Only",
@@ -237,7 +236,7 @@ def create_filtered_leaderboard():
                             "inline": True
                         }
                     ],
-                    "avatar": "bb71f469c158984e265093a81b3397fb",
+                    
                     "footer": {
                         "text": f"Pops since the last check ({time_diff_str} ago).",
                         "icon_url": "https://raw.githubusercontent.com/SimonStnn/pop-a-loon/main/resources/icons/icon-128.png"  
@@ -271,13 +270,12 @@ def create_filtered_leaderboard():
             filtered_count_field["value"] += f"{user['count']}\n"
             filtered_pops_since_last_check_field["value"] += f"+{diff_info['count_diff']}\n"
 
-        filtered_embed = {
+        filtered_embed = {"avatar_url": "https://cdn.discordapp.com/attachments/1247513167278637138/1248939295679709276/file_6.png?ex=66657cdc&is=66642b5c&hm=64ab019e21c19b3b99fb61a462eeda1771822dafb91b5367ccacfe021a443387&",
             "embeds": [
                 {
                     "title": "Top 10 Pop-A-Loon Suspects - Increases Only",
                     "color": 16711680,
                     "fields": [filtered_username_field, filtered_count_field, filtered_pops_since_last_check_field],
-                    "avatar": "bb71f469c158984e265093a81b3397fb",
                     "footer": {
                         "text": f"Pops since the last check ({time_diff_str} ago).",
                         "icon_url": "https://raw.githubusercontent.com/SimonStnn/pop-a-loon/main/resources/icons/icon-128.png"  
