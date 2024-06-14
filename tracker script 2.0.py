@@ -12,7 +12,8 @@ leaderboard_url = "https://pop-a-loon.stijnen.be/api/leaderboard?limit=10"
 webhook_urls = {
     "main": "https://discord.com/api/webhooks/1247250306446790769/nx3UwUhZ_70OY5R-eT4Bal_y0vK1-PDXXAVrCRdlAMLK7FXzggj3cwwiZ3R_BmH0lcAJ",
     "simon": "https://discord.com/api/webhooks/1247919630958461038/6MK3C7S9ggIpOM-tmbXd2iCkSrM7Trai27ROLBVhaWrQKU_RdsbY8nNoz6rlFpeEsMtj",
-    "test": "https://discord.com/api/webhooks/1247250306446790769/nx3UwUhZ_70OY5R-eT4Bal_y0vK1-PDXXAVrCRdlAMLK7FXzggj3cwwiZ3R_BmH0lcAJ?thread_id=1247513167278637138"
+    "test": "https://discord.com/api/webhooks/1247250306446790769/nx3UwUhZ_70OY5R-eT4Bal_y0vK1-PDXXAVrCRdlAMLK7FXzggj3cwwiZ3R_BmH0lcAJ?thread_id=1247513167278637138",
+    "new_webhook": "https://discord.com/api/webhooks/1249447140229644439/96A0UnCKqbBrXpYhmDikQuKdKsc5Hh33Apsxqyh-MAWSrYtoVOG6IMoo2gc_RvzpFw4c"
 }
 headers = {
     'authorization': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY2MDZlYTI0OWZiZTg1ZDUyM2RkOWM1YiIsImlhdCI6MTcxMTcyOTE4OH0.qDSx4sGLHHArwWQT5husBehcXU2u0Hwsxh9Z9kS-ieU'
@@ -306,9 +307,8 @@ if __name__ == "__main__":
     root = tk.Tk()
     root.title("Pop-A-Loon Leaderboard Checker")
 
-    height = 300
-    width = 400
-    root.geometry(f"{width}x{height}")
+    
+    root.geometry(f"400x500")
 
     root.configure(bg="#f0f0f0")
     root.grid_rowconfigure(0, weight=1)
@@ -329,17 +329,21 @@ if __name__ == "__main__":
     webhook_vars = {
         "main": tk.IntVar(),
         "simon": tk.IntVar(),
-        "test": tk.IntVar()
+        "test": tk.IntVar(),
+        "new_webhook": tk.IntVar()
     }
 
-    checkbox_main = tk.Checkbutton(frame, text="Main Webhook", variable=webhook_vars["main"], bg="#f0f0f0")
+    checkbox_main = tk.Checkbutton(frame, text="E-ICT", variable=webhook_vars["main"], bg="#f0f0f0")
     checkbox_main.pack(anchor="w")
 
-    checkbox_simon = tk.Checkbutton(frame, text="Simon Webhook", variable=webhook_vars["simon"], bg="#f0f0f0")
+    checkbox_simon = tk.Checkbutton(frame, text="Simon", variable=webhook_vars["simon"], bg="#f0f0f0")
     checkbox_simon.pack(anchor="w")
 
-    checkbox_test = tk.Checkbutton(frame, text="Test Webhook", variable=webhook_vars["test"], bg="#f0f0f0")
+    checkbox_test = tk.Checkbutton(frame, text="Test channel", variable=webhook_vars["test"], bg="#f0f0f0")
     checkbox_test.pack(anchor="w")
+
+    checkbox_new = tk.Checkbutton(frame, text="Bananenland", variable=webhook_vars["new_webhook"], bg="#f0f0f0")
+    checkbox_new.pack(anchor="w")
 
     check_button_top10 = ttk.Button(frame, text="Check Top 10", command=lambda: check_leaderboard(filtered=False))
     check_button_top10.pack(pady=(5, 5))

@@ -5,23 +5,30 @@ from tkinter import messagebox
 import threading
 import time
 import random
+# edge auth token
+#eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY2NjVhMzYxNTQzYmUyOTc0ZGViNDFmMiIsImlhdCI6MTcxNzkzNjk5M30.tcd4jL3eTblFBaH0kyS9MZKdT6Y2aK3H-I5Doql2Qak
+
+#main auth token
+#eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY2MDZlYTI0OWZiZTg1ZDUyM2RkOWM1YiIsImlhdCI6MTcxMTcyOTE4OH0.qDSx4sGLHHArwWQT5husBehcXU2u0Hwsxh9Z9kS-ieU
+
 
 # Function to send the increment request
 def increment_request():
     url = "https://pop-a-loon.stijnen.be/api/user/count/increment"
     headers = {
-        'authorization': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY2NjVhMzYxNTQzYmUyOTc0ZGViNDFmMiIsImlhdCI6MTcxNzkzNjk5M30.tcd4jL3eTblFBaH0kyS9MZKdT6Y2aK3H-I5Doql2Qak',
+        'authorization': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY2MDZlYTI0OWZiZTg1ZDUyM2RkOWM1YiIsImlhdCI6MTcxMTcyOTE4OH0.qDSx4sGLHHArwWQT5husBehcXU2u0Hwsxh9Z9kS-ieU',
         'Content-Type': 'application/json'
     }
     try:
         response = requests.post(url, headers=headers, data=json.dumps({}))
         response.raise_for_status()
         content = response.json()
-        print(content)
+        # Update count in GUI
+        count_label.config(text=f"Count: {content['count']}")
         update_status("Incremented successfully", "green")
     except requests.exceptions.RequestException as e:
         print(e)
-        update_status(f"Failed to increment: {e}", "red")
+        update_status(f"Failed to increment", "red")
 
 # Timer reset function
 def reset_timer():
@@ -109,6 +116,10 @@ stop_button.pack(pady=10)
 # Create and place the countdown label
 countdown_label = tk.Label(root, text="Next increment in: 0.00 seconds")
 countdown_label.pack(pady=10)
+
+# Create and place the count label
+count_label = tk.Label(root, text="Count: 0")
+count_label.pack(pady=10)
 
 # Start the timer thread
 start_time = time.time()
