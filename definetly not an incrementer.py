@@ -19,7 +19,7 @@ def increment_request():
     # url = "https://pop-a-loon.stijnen.be/api/user/count/increment?type=splitter"
     url = "https://pop-a-loon.stijnen.be/api/user/count/increment?type=default"
     headers = {
-        'authorization': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY2MDZlYTI0OWZiZTg1ZDUyM2RkOWM1YiIsImlhdCI6MTcxMTcyOTE4OH0.qDSx4sGLHHArwWQT5husBehcXU2u0Hwsxh9Z9kS-ieU',
+        'authorization': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY2NjVhMzYxNTQzYmUyOTc0ZGViNDFmMiIsImlhdCI6MTcxNzkzNjk5M30.tcd4jL3eTblFBaH0kyS9MZKdT6Y2aK3H-I5Doql2Qak8',
         'Content-Type': 'application/json'
     }
     try:
