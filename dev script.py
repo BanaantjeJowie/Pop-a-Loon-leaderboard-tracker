@@ -1,149 +1,162 @@
 import requests
 import json
 import os
-from datetime import datetime
-import tkinter as tk
-from tkinter import messagebox
-from tkinter import ttk
+from datetime import datetime, timedelta
 
-# Define the necessary URLs and headers
-leaderboard_url = "https://pop-a-loon.stijnen.be/api/leaderboard?limit=10"
-discord_webhook_url = "https://discord.com/api/webhooks/1247250306446790769/nx3UwUhZ_70OY5R-eT4Bal_y0vK1-PDXXAVrCRdlAMLK7FXzggj3cwwiZ3R_BmH0lcAJ"
+# Base URL
+base_url = "https://pop-a-loon.stijnen.be/api/leaderboard?limit=10"
 
+# Authorization header
 headers = {
     'authorization': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY2MDZlYTI0OWZiZTg1ZDUyM2RkOWM1YiIsImlhdCI6MTcxMTcyOTE4OH0.qDSx4sGLHHArwWQT5husBehcXU2u0Hwsxh9Z9kS-ieU'
 }
 
-# File to store the previous leaderboard data and timestamp
-data_file = 'previous_leaderboard.json'
+# Discord webhook URL
+discord_webhook_url = 'https://discord.com/api/webhooks/1247250306446790769/nx3UwUhZ_70OY5R-eT4Bal_y0vK1-PDXXAVrCRdlAMLK7FXzggj3cwwiZ3R_BmH0lcAJ'
 
-def check_leaderboard():
-    try:
-        # Fetch the leaderboard data
-        response = requests.get(leaderboard_url, headers=headers)
-        response.raise_for_status()
-        current_leaderboard = response.json()
-    except requests.RequestException as e:
-        messagebox.showerror("Error", f"Failed to fetch leaderboard data: {e}")
-        return
+# File to persist scores and timestamp
+score_file = "previous_scores.json"
 
-    # Load the previous leaderboard data from a local file
-    try:
-        with open(data_file, 'r') as f:
-            previous_data = json.load(f)
-            previous_leaderboard = previous_data['topUsers']
-            last_check_time = datetime.fromisoformat(previous_data['timestamp'])
-    except (FileNotFoundError, KeyError, json.JSONDecodeError):
-        previous_leaderboard = []
-        last_check_time = datetime.now()
+# Load previous scores and timestamp from file
+def load_previous_scores():
+    if os.path.exists(score_file):
+        with open(score_file, 'r') as file:
+            try:
+                data = file.read().strip()  # Check if the file contains any data
+                if data:  # If file is not empty
+                    return json.loads(data)
+                else:
+                    return {"scores": {}, "timestamp": None}  # Return default if empty
+            except json.JSONDecodeError:
+                return {"scores": {}, "timestamp": None}  # Return default if invalid JSON
+    else:
+        return {"scores": {}, "timestamp": None}  # Return default if file doesn't exist
 
-    # Calculate the time since the last check
-    current_time = datetime.now()
-    time_diff = current_time - last_check_time
-    time_diff_str = str(time_diff).split('.')[0]  # Format the time difference
+
+# Save current scores and timestamp to file
+def save_previous_scores(previous_scores, timestamp):
+    with open(score_file, 'w') as file:
+        json.dump({"scores": previous_scores, "timestamp": timestamp}, file)
+
+# Function to fetch leaderboard data
+def fetch_leaderboard(skip: int):
+    url = f"{base_url}&skip={skip}"
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()  # Raise exception if request failed
+    return response.json()
+
+# Function to calculate time since last check
+def time_since_last_check(last_check):
+    if last_check is None:
+        return "First check"
     
-    # Update the live timer label
-    timer_label.config(text=f"Time since last check: {time_diff_str}")
+    last_check_time = datetime.fromisoformat(last_check)
+    elapsed_time = datetime.now() - last_check_time
+    
+    days, seconds = divmod(elapsed_time.total_seconds(), 86400)
+    hours, seconds = divmod(seconds, 3600)
+    minutes, _ = divmod(seconds, 60)
+    
+    return f"{int(days)} days, {int(hours)}:{int(minutes):02d}:{int(seconds):02d} ago"
 
-    # Calculate the number of popped balloons since the last check
-    balloon_differences = {}
-    for current_user in current_leaderboard.get('topUsers', []):
-        for previous_user in previous_leaderboard:
-            if current_user['username'] == previous_user['username']:
-                balloon_differences[current_user['username']] = current_user['count'] - previous_user['count']
-                break
-        else:
-            balloon_differences[current_user['username']] = current_user['count']
-
-    # Save the current leaderboard data with the current timestamp for future comparison
-    try:
-        with open(data_file, 'w') as f:
-            json.dump({
-                'timestamp': current_time.isoformat(),
-                'topUsers': current_leaderboard.get('topUsers', [])
-            }, f)
-    except IOError as e:
-        messagebox.showerror("Error", f"Failed to save leaderboard data: {e}")
-        return
-
-    # Create the Discord embed message
-    username_field = {
-        "name": "Username",
-        "value": "",
-        "inline": True
+# Function to send leaderboard to Discord
+def send_to_discord(embed_content):
+    data = {
+        "embeds": [embed_content]
     }
+    response = requests.post(discord_webhook_url, json=data)
+    if response.status_code == 204:
+        print("Message sent to Discord successfully!")
+    else:
+        print(f"Failed to send message to Discord: {response.status_code}, {response.text}")
 
-    count_field = {
-        "name": "Count",
-        "value": "",
-        "inline": True
-    }
+# Function to create Discord embed
+def create_discord_embed(all_users_sorted, previous_scores, last_check):
+    leaderboard_text = ""
+    for rank, user in enumerate(all_users_sorted, start=1):
+        current_score = user['count']
+        username = user['username']
+        previous_score = previous_scores.get(username, current_score)  # Default to current if not found
+        score_diff = current_score - previous_score
+        change_text = f"{'+' if score_diff > 0 else ''}{score_diff}" if score_diff != 0 else ''
+        leaderboard_text += f"{rank}. **{username}** - {current_score} {change_text}\n"
+    
+    # Time since last check
+    time_diff = time_since_last_check(last_check)
 
-    pops_since_last_check_field = {
-        "name": "Increase",
-        "value": "",
-        "inline": True
-    }
-
-    for user in current_leaderboard.get('topUsers', []):
-        diff = balloon_differences.get(user['username'], user['count'])
-        username_field["value"] += f"{user['username']}\n"
-        count_field["value"] += f"{user['count']}\n"
-        pops_since_last_check_field["value"] += f"+{diff}\n"
-
-    embed = {
-        "embeds": [
+    # Create embed content
+    embed_content = {
+    "title": "Top 10 Poppers",
+    "color": 3066993,  # Green color
+    "fields": [
         {
-            "title": "Top 10 Pop-A-Loon Suspects.",
-            "color": 16711680,
-            "fields": [username_field, count_field, pops_since_last_check_field],
-            "footer": {
-                "text": f"Pops since the last check ({time_diff_str} ago).",
-                "icon_url": "https://raw.githubusercontent.com/SimonStnn/pop-a-loon/main/resources/icons/icon-128.png"  
-            }
+            "name": "Username",
+            "value": "\n".join([user['username'] for user in all_users_sorted]),
+            "inline": True
+        },
+        {
+            "name": "Count",
+            "value": "\n".join([str(user['count']) for user in all_users_sorted]),
+            "inline": True
+        },
+        {
+            "name": "Increase",
+            "value": "\n".join([f"{'+' if (user['count'] - previous_scores.get(user['username'], 0)) > 0 else ''}{user['count'] - previous_scores.get(user['username'], 0)}" for user in all_users_sorted]),
+            "inline": True
         }
-    ]
-    }
+    ],
+    "footer": {
+        "text": f"Pops since the last check ({time_diff}).",
+        "icon_url": "https://cdn.discordapp.com/attachments/1247250118504091688/1298647067023118416/icon-128_1.png?ex=671a52d4&is=67190154&hm=7da3fb14f4949a6d42f2be120508a538d64198a04908f308d76c30373e82a761&"  # Placeholder for balloon icon
+    },
+    "thumbnail": {
+        "url": "https://cdn.discordapp.com/attachments/1247250118504091688/1298647067023118416/icon-128_1.png?ex=671a52d4&is=67190154&hm=7da3fb14f4949a6d42f2be120508a538d64198a04908f308d76c30373e82a761&"  # Placeholder for a thumbnail image
+    },
+    "author": {
+        "name": "Pop-a-loon Watchdog",  # Example author name
+        "icon_url": "https://cdn.discordapp.com/attachments/1247513167278637138/1248939295679709276/file_6.png?ex=66657cdc&is=66642b5c&hm=64ab019e21c19b3b99fb61a462eeda1771822dafb91b5367ccacfe021a443387&"  # Placeholder for avatar image
+    },
+    "timestamp": datetime.now().isoformat()
+}
 
-    # Send the embed to Discord
-    response = requests.post(
-            discord_webhook_url, 
-            data=json.dumps(embed), 
-            headers={"Content-Type": "application/json"}
-        )
+    return embed_content
 
+# Function to print and calculate differences in scores
+def print_leaderboard_with_changes(all_users_sorted, previous_scores):
+    for rank, user in enumerate(all_users_sorted, start=1):
+        current_score = user['count']
+        username = user['username']
+        previous_score = previous_scores.get(username, current_score)  # Default to current if not found
+        score_diff = current_score - previous_score
+        print(f"{rank}. User: {username}, Score: {current_score} {'+' if score_diff > 0 else ''}{score_diff if score_diff != 0 else ''}")
+        previous_scores[username] = current_score
 
+# Main code to fetch, compare, display leaderboard changes and send to Discord
+def main():
+    # Load previous scores and timestamp from file
+    data = load_previous_scores()
+    previous_scores = data.get("scores", {})
+    last_check = data.get("timestamp", None)
 
-# Set up the Tkinter window
-root = tk.Tk()
-root.title("Pop-A-Loon Leaderboard Checker")
+    # Fetch all users (up to 100)
+    all_users = []
+    for skip in range(0, 100, 10):
+        data = fetch_leaderboard(skip)
+        all_users.extend(data["topUsers"])
 
-# Set the window size
-height = 200
-width = 400
-root.geometry(f"{width}x{height}")
+    # Sort all users by 'count' (score) in descending order
+    all_users_sorted = sorted(all_users, key=lambda x: x['count'], reverse=True)
 
-# Add padding and background color
-root.configure(bg="#f0f0f0")
-root.grid_rowconfigure(0, weight=1)
-root.grid_columnconfigure(0, weight=1)
+    # Print leaderboard with score changes
+    print_leaderboard_with_changes(all_users_sorted, previous_scores)
 
-# Add a frame for better organization
-frame = tk.Frame(root, bg="#f0f0f0", padx=20, pady=20)
-frame.grid(sticky="nsew")
+    # Create and send the leaderboard as a Discord embed
+    embed_content = create_discord_embed(all_users_sorted, previous_scores, last_check)
+    send_to_discord(embed_content)
 
-# Add a title label
-title_label = tk.Label(frame, text="Check on leaderboard.", font=("Helvetica", 16), bg="#f0f0f0")
-title_label.pack(pady=(0, 10))
+    # Save updated scores and the current timestamp to file
+    current_timestamp = datetime.now().isoformat()
+    save_previous_scores(previous_scores, current_timestamp)
 
-# Add the live timer label
-timer_label = tk.Label(frame, text="", font=("Helvetica", 10), bg="#f0f0f0")
-timer_label.pack(pady=(0, 10))
-
-# Add the check button with some styling
-check_button = ttk.Button(frame, text="Check", command=check_leaderboard)
-check_button.pack(pady=10)
-
-# Run the Tkinter event loop
-root.mainloop()
-
+if __name__ == "__main__":
+    main()
